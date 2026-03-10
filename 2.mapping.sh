@@ -54,3 +54,8 @@ while IFS= read -r file; do
         echo "$command" >> commands.txt
     done < "$database_list"
 done < "$sample_list"
+
+
+sbatch map.sh
+
+
