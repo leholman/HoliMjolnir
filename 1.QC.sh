@@ -18,20 +18,22 @@ conda activate sga-env
 module load fastp
 module load vsearch
 echo "Trimming $i"
-fastp  -i ${i}_R1.fastq.gz -I ${i}_R2.fastq.gz -m --merged_out ${i}.trim.fastq -V --detect_adapter_for_pe -D --dup_calc_accuracy 5  -g -x -q 30 -e 25 -l 30 -y -c -p -h ${i}.fastp.report.html -w 8
+fastp  -i "${i}_R1.fastq.gz" -I "${i}_R2.fastq.gz" -m --merged_out "${i}.trim.fastq" -V --detect_adapter_for_pe -D --dup_calc_accuracy 5  -g -x -q 30 -e 25 -l 30 -y -c -p -h '${i}.fastp.report.html' -w 8
 echo "Dedup $i"
-vsearch --fastx_uniques ${i}.trim.fastq --fastqout ${i}.trim.vs.fastq --minseqlength 30 --strand both
-sga preprocess --dust-threshold=4 -m 30 ${i}.trim.vs.fastq  -o ${i}.trim.vs.d1.fastq
-gzip ${i}.trim.vs.d1.fastq
-read_count=\$(zcat "${i}.trim.vs.d1.fastq.gz" | grep -c '^@')
-echo "${i},\$read_count" >> vsearch.counts.csv
-mv ${i}.trim.vs.d1.fastq.gz ../1.premapping/${i}.trim.vs.d1.fastq.gz
+vsearch --fastx_uniques "${i}.trim.fastq" --fastqout "${i}.trim.vs.fastq" --minseqlength 30 --strand both
+v_count=$(( $(wc -l < "${i}.trim.vs.fastq") / 4 ))
+sga preprocess --dust-threshold=4 -m 30 "${i}.trim.vs.fastq"  -o "${i}.trim.vs.d4.fastq"
+sga_count=$(( $(wc -l < "${i}.trim.vs.d4.fastq") / 4 ))
+echo "${i},${v_count},${s_count}" >> combined.counts.csv
+gzip "${i}.trim.vs.d4.fastq"
+
+mv "${i}.trim.vs.d4.fastq.gz" "../1.premapping/${i}.trim.vs.d4.fastq.gz"
 EOL
 done;
 
 ### now we extract all the outputs from the html files
 ls *.fastp.report.html | sed 's/.fastp.report.html//' | sort > sample_names.txt
-sort -t',' -k1,1 vsearch.counts.csv > sorted.vsearch.counts.csv
+sort -t',' -k1,1 combined.counts.csv > sorted.combined.counts.csv
 
 echo "Sample,sequencing,duplication rate,raw reads,fastP filtered reads,too short reads,low complexity,low quality,GC content,Insert Size Peak,no overlap percent,ID2,premapping reads" > data.summary.output.csv
 
@@ -47,6 +49,7 @@ paste -d ',' \
   <(for f in $(cat sample_names.txt); do val=$(grep 'GC content' $f.fastp.report.html | cut -f5 -d">" | cut -f1 -d"<" | awk 'NR==2'); echo "${val:-NA}"; done) \
   <(for f in $(cat sample_names.txt); do val=$(grep 'Insert size peak' $f.fastp.report.html | cut -f5 -d">" | cut -f1 -d"<"); echo "${val:-NA}"; done) \
   <(for f in $(cat sample_names.txt); do val=$(grep 'This estimation is based on paired-end overlap analysis' $f.fastp.report.html | sed -E 's/.* ([0-9]+\.[0-9]+)% .*/\1/'); echo "${val:-NA}"; done) \
-  <(cut -d',' -f1 sorted.vsearch.counts.csv) \
-  <(cut -d',' -f2 sorted.vsearch.counts.csv) \
+  <(cut -d',' -f1 sorted.combined.counts.csv) \
+  <(cut -d',' -f2 sorted.combined.counts.csv) \
+  <(cut -d',' -f3 sorted.combined.counts.csv)
   >> data.summary.output.csv
