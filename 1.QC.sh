@@ -18,14 +18,17 @@ conda activate sga-env
 module load fastp
 module load vsearch
 echo "Trimming $i"
-fastp  -i ${i}_R1.fastq.gz -I ${i}_R2.fastq.gz -m --merged_out ${i}.trim.fastq -V --detect_adapter_for_pe -D --dup_calc_accuracy 5  -g -x -q 30 -e 25 -l 30 -y -c -p -h ${i}.fastp.report.html -w 8
+fastp  -i "${i}_R1.fastq.gz" -I "${i}_R2.fastq.gz" -m --merged_out "${i}.trim.fastq" -V --detect_adapter_for_pe -D --dup_calc_accuracy 5  -g -x -q 30 -e 25 -l 30 -y -c -p -h '${i}.fastp.report.html' -w 8
 echo "Dedup $i"
-vsearch --fastx_uniques ${i}.trim.fastq --fastqout ${i}.trim.vs.fastq --minseqlength 30 --strand both
-sga preprocess --dust-threshold=4 -m 30 ${i}.trim.vs.fastq  -o ${i}.trim.vs.d1.fastq
-gzip ${i}.trim.vs.d1.fastq
-read_count=\$(zcat "${i}.trim.vs.d1.fastq.gz" | grep -c '^@')
+vsearch --fastx_uniques "${i}.trim.fastq" --fastqout "${i}.trim.vs.fastq" --minseqlength 30 --strand both
+read_count=\$(( \$(wc -l < ${i}.trim.vs.fastq) / 4 ))
 echo "${i},\$read_count" >> vsearch.counts.csv
-mv ${i}.trim.vs.d1.fastq.gz ../1.premapping/${i}.trim.vs.d1.fastq.gz
+sga preprocess --dust-threshold=4 -m 30 "${i}.trim.vs.fastq"  -o "${i}.trim.vs.d4.fastq"
+read_count=\$(( \$(wc -l < ${i}.trim.vs.d4.fastq) / 4 ))
+echo "${i},\$read_count" >> sga.counts.csv
+gzip "${i}.trim.vs.d4.fastq"
+
+mv "${i}.trim.vs.d4.fastq.gz" "../1.premapping/${i}.trim.vs.d4.fastq.gz"
 EOL
 done;
 
