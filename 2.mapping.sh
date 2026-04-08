@@ -5,22 +5,44 @@ find -L /datasets/globe_databases/holi_db \( -name '*.bt2' -o -name '*.bt2l' \) 
 # ── 1. Pick newest date for each family (refseq/plant, nt, etc.) ──
 awk -F/ '
 {
-  fam  = $(NF-3) "/" $(NF-2);   # e.g. refseq/plant
-  date = $(NF-1);               # e.g. 20250505
-  line = $0;                    # full path including part-number & extension
+    # Find the field containing the 8-digit date (YYYYMMDD)
+    date_field = 0;
+    for (i = 1; i <= NF; i++) {
+        if ($i ~ /^[0-9]{8}$/) {
+            date_field = i;
+            break;
+        }
+    }
 
-  # remember newest date
-  if (date > newest[fam]) newest[fam] = date;
+    if (date_field > 0) {
+        # Define family as everything before the date (e.g., .../holi_db/phylonorway)
+        fam = "";
+        for (j = 1; j < date_field; j++) {
+            fam = (fam == "" ? $j : fam "/" $j);
+        }
 
-  # keep every line, keyed by fam|date
-  bucket[fam, date] = bucket[fam, date] ? bucket[fam, date] ORS line : line;
+        date = $date_field;
+        line = $0;
+
+        # Track the newest date for phylonorway specific family path
+        if (date > newest[fam]) {
+            newest[fam] = date;
+        }
+
+        # Store lines in a bucket for that specific family and date
+        bucket[fam, date] = bucket[fam, date] ? bucket[fam, date] ORS line : line;
+    }
 }
 END {
-  # spit out only lines that belong to the newest date for each family
-  for (key in bucket) {
-    split(key, a, SUBSEP); fam = a[1]; date = a[2];
-    if (date == newest[fam]) print bucket[key];
-  }
+    for (key in bucket) {
+        split(key, a, SUBSEP);
+        fam = a[1]; 
+        date = a[2];
+        # Only print the bucket if it matches the newest date found for that family
+        if (date == newest[fam]) {
+            print bucket[key];
+        }
+    }
 }' |
 
 # ── 2. Now strip .rev.N.bt2[l] or .N.bt2[l] so we have a clean prefix ──
